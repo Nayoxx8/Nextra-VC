@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import type { AccessListKind } from "../types.js";
 import { TEMPLATE_BUTTON_ID } from "./templatePanel.js";
+import { RECRUIT_BUTTON_ID } from "./recruitmentPanel.js";
 
 export const SETTINGS_PANEL_ID = "vccreate:panel";
 export const NAME_BUTTON_ID = "vccreate:name";
@@ -135,9 +136,19 @@ export const buildOtherSettingsSelect = (
   );
 };
 
+export const buildRecruitmentRow = (): ActionRowBuilder<ButtonBuilder> =>
+  new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(RECRUIT_BUTTON_ID)
+      .setStyle(ButtonStyle.Success)
+      .setLabel("通話募集")
+      .setEmoji("📢")
+  );
+
 export const buildSettingsComponents = (): Array<ActionRowBuilder<ButtonBuilder>> => [
   buildSettingsButtons(),
-  buildUserLimitButtons()
+  buildUserLimitButtons(),
+  buildRecruitmentRow()
 ];
 
 export const buildAccessListAddSelectId = (kind: AccessListKind): string =>

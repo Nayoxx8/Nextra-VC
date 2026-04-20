@@ -1,5 +1,7 @@
 import {
+  ChannelType,
   Events,
+  GuildMember,
   type InteractionReplyOptions,
   MessageFlags,
   PermissionFlagsBits,
@@ -13,6 +15,7 @@ import {
 } from "discord.js";
 import { executeSetVcCreate } from "./commands/setVcCreate.js";
 import { executeResendPanel } from "./commands/resendPanel.js";
+import { executeSetRecruitmentRole } from "./commands/setRecruitmentRole.js";
 import {
   ACCESS_LIST_ADD_SELECT_PREFIX,
   ACCESS_LIST_LABELS,
@@ -53,6 +56,8 @@ import {
   buildTemplateSaveModal
 } from "./panels/templatePanel.js";
 import { renameOwnedGeneratedVcIfConnected } from "./services/generatedVcService.js";
+import { RECRUIT_BUTTON_ID, RECRUIT_MODAL_ID, RECRUIT_INPUT_ID, buildRecruitModal } from "./panels/recruitmentPanel.js";
+import { getJstTimeSlot } from "./utils/timeSlot.js";
 import type { AccessListKind, BotContext, VcTemplateRecord } from "./types.js";
 
 const UNKNOWN_INTERACTION_ERROR_CODE = 10062;
@@ -393,6 +398,131 @@ const replyWithAccessListManager = async (
   });
 };
 
+const handleRecruitButton = async (
+  interaction: ButtonInteraction,
+  context: BotContext
+): Promise<void> => {
+  if (!interaction.guild) return;
+
+  const member = interaction.member;
+  const voiceChannelId = member instanceof GuildMember ? member.voice.channelId : null;
+  if (!voiceChannelId) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "通話作成で作成されたVCに参加してから通話募集をしてください。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const generated = await context.repo.findGeneratedVcByChannel(voiceChannelId);
+  if (!generated) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "通話作成で作成されたVCに参加してから通話募集をしてください。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const pref = await context.repo.getOrCreateUserPreference(generated.owner_user_id, context.defaults);
+  if (pref.is_private) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "非公開VCからは通話募集できません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  await interaction.showModal(buildRecruitModal());
+};
+
+const handleRecruitModalSubmit = async (
+  interaction: ModalSubmitInteraction,
+  context: BotContext
+): Promise<void> => {
+  if (!interaction.guild || !interaction.guildId) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const member = interaction.member;
+  const voiceChannelId = member instanceof GuildMember ? member.voice.channelId : null;
+  if (!voiceChannelId) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "通話作成で作成されたVCに参加していません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const generated = await context.repo.findGeneratedVcByChannel(voiceChannelId);
+  if (!generated) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "通話作成で作成されたVCに参加していません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const pref = await context.repo.getOrCreateUserPreference(generated.owner_user_id, context.defaults);
+  if (pref.is_private) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "非公開VCからは通話募集できません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const voiceChannel =
+    interaction.guild.channels.cache.get(voiceChannelId) ??
+    await interaction.guild.channels.fetch(voiceChannelId).catch(() => null);
+  const categoryId = voiceChannel?.parentId;
+  if (!categoryId) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "VCのカテゴリが見つかりません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const hub = await context.repo.findHubByCategoryId(categoryId);
+  if (!hub) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "通話作成ハブが見つかりません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const settingsChannel =
+    interaction.guild.channels.cache.get(hub.settings_text_channel_id) ??
+    await interaction.guild.channels.fetch(hub.settings_text_channel_id).catch(() => null);
+
+  if (!settingsChannel || settingsChannel.type !== ChannelType.GuildText) {
+    await sendSafeInteractionResponse(interaction, {
+      content: "設定チャンネルが見つかりません。",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const slot = getJstTimeSlot();
+  const roleId = await context.repo.getTimeSlotRole(interaction.guildId, slot);
+  const roleMention = roleId ? `<@&${roleId}> ` : "";
+  const userMessage = interaction.fields.getTextInputValue(RECRUIT_INPUT_ID).trim();
+
+  await settingsChannel.send({
+    content: [
+      `${roleMention}${interaction.user} が通話を募集しています！`,
+      `> ${userMessage}`,
+      `📞 <#${voiceChannelId}>`
+    ].join("\n")
+  });
+
+  await sendSafeInteractionResponse(interaction, {
+    content: "通話募集を送信しました！",
+    flags: MessageFlags.Ephemeral
+  });
+};
+
 const handleButton = async (
   interaction: ButtonInteraction,
   context: BotContext
@@ -418,6 +548,11 @@ const handleButton = async (
 
   if (interaction.customId === TEMPLATE_SAVE_BUTTON_ID) {
     await handleTemplateSaveButton(interaction, context);
+    return;
+  }
+
+  if (interaction.customId === RECRUIT_BUTTON_ID) {
+    await handleRecruitButton(interaction, context);
     return;
   }
 
@@ -1210,6 +1345,18 @@ export const registerInteractionHandler = (
         return;
       }
 
+      if (interaction.isChatInputCommand() && interaction.commandName === "set_recruitment_role") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          await interaction.reply({
+            content: "このコマンドには Manage Guild 権限が必要です。",
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+        await executeSetRecruitmentRole(interaction, context);
+        return;
+      }
+
       if (interaction.isButton()) {
         await runWithOptionalSettingsPanelUserLock(interaction, async () => {
           await handleButton(interaction, context);
@@ -1275,6 +1422,11 @@ export const registerInteractionHandler = (
 
           if (interaction.customId.startsWith(TEMPLATE_SAVE_MODAL_PREFIX)) {
             await handleTemplateSaveModalSubmit(interaction, context);
+            return;
+          }
+
+          if (interaction.customId === RECRUIT_MODAL_ID) {
+            await handleRecruitModalSubmit(interaction, context);
             return;
           }
 

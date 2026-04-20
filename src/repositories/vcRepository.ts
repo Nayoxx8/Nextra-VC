@@ -143,6 +143,11 @@ export class VcRepository {
     return row ? toHubRecord(row) : null;
   }
 
+  public async findHubByCategoryId(categoryId: string): Promise<HubRecord | null> {
+    const row = await prisma.vcHub.findFirst({ where: { categoryId } });
+    return row ? toHubRecord(row) : null;
+  }
+
   public async listHubs(): Promise<HubRecord[]> {
     const rows = await prisma.vcHub.findMany();
     return rows.map(toHubRecord);
@@ -291,5 +296,20 @@ export class VcRepository {
     await prisma.userVcTemplate.deleteMany({
       where: { ownerUserId, slot }
     });
+  }
+
+  public async upsertTimeSlotRole(guildId: string, timeSlot: string, roleId: string): Promise<void> {
+    await prisma.timeSlotRole.upsert({
+      where: { guildId_timeSlot: { guildId, timeSlot } },
+      create: { guildId, timeSlot, roleId },
+      update: { roleId }
+    });
+  }
+
+  public async getTimeSlotRole(guildId: string, timeSlot: string): Promise<string | null> {
+    const row = await prisma.timeSlotRole.findUnique({
+      where: { guildId_timeSlot: { guildId, timeSlot } }
+    });
+    return row?.roleId ?? null;
   }
 }

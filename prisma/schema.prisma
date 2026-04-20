@@ -58,3 +58,12 @@ model UserVcTemplate {
   @@id([ownerUserId, slot])
   @@map("user_vc_templates")
 }
+
+model TimeSlotRole {
+  guildId  String @map("guild_id")
+  timeSlot String @map("time_slot")
+  roleId   String @map("role_id")
+
+  @@id([guildId, timeSlot])
+  @@map("time_slot_roles")
+}
