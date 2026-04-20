@@ -440,25 +440,6 @@ const handleRecruitButton = async (
     return;
   }
 
-  const channel = interaction.channel;
-  if (channel?.isTextBased() && !channel.isDMBased()) {
-    void (async () => {
-      const messages = await channel.messages.fetch({ limit: 50 });
-      for (const msg of messages.values()) {
-        if (msg.embeds.some((e) => e.footer?.text === RECRUIT_PANEL_FOOTER)) {
-          await msg.delete().catch(() => undefined);
-        }
-      }
-      await channel.send({
-        embeds: [buildRecruitmentEmbed()],
-        components: buildRecruitmentComponents()
-      });
-    })().catch((e) => {
-      const message = e instanceof Error ? e.message : "unknown error";
-      console.error(`[interaction] failed to refresh recruitment panel: ${message}`);
-    });
-  }
-
   await interaction.showModal(buildRecruitModal());
 };
 
@@ -518,6 +499,22 @@ const handleRecruitModalSubmit = async (
       `> ${userMessage}`,
       `📞 <#${voiceChannelId}>`
     ].join("\n")
+  });
+
+  void (async () => {
+    const messages = await channel.messages.fetch({ limit: 50 });
+    for (const msg of messages.values()) {
+      if (msg.embeds.some((e) => e.footer?.text === RECRUIT_PANEL_FOOTER)) {
+        await msg.delete().catch(() => undefined);
+      }
+    }
+    await channel.send({
+      embeds: [buildRecruitmentEmbed()],
+      components: buildRecruitmentComponents()
+    });
+  })().catch((e) => {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[interaction] failed to refresh recruitment panel: ${message}`);
   });
 
   await sendSafeInteractionResponse(interaction, {
