@@ -17,8 +17,8 @@ import {
 } from "../panels/settingsPanel.js";
 import type { BotContext } from "../types.js";
 
-const CREATOR_VOICE_NAME = "✧通話作成";
-const SETTINGS_TEXT_NAME = "✧通話作成設定";
+const CREATOR_VOICE_NAME = "通話作成";
+const SETTINGS_TEXT_NAME = "通話作成設定";
 const setVcCreateLocks = new Map<string, Promise<void>>();
 
 type CategoryHubChannels = {

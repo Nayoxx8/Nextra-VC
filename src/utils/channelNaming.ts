@@ -1,4 +1,4 @@
-const PREFIX = "✧";
+const PREFIX = "";
 
 export const buildBaseChannelName = (icon: string, name: string): string => {
   const safeIcon = icon.trim();
