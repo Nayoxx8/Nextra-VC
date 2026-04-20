@@ -16,6 +16,7 @@ import {
 import { executeSetVcCreate } from "./commands/setVcCreate.js";
 import { executeResendPanel } from "./commands/resendPanel.js";
 import { executeSetRecruitmentRole } from "./commands/setRecruitmentRole.js";
+import { executeSendRecruitmentPanel } from "./commands/sendRecruitmentPanel.js";
 import {
   ACCESS_LIST_ADD_SELECT_PREFIX,
   ACCESS_LIST_LABELS,
@@ -1342,6 +1343,18 @@ export const registerInteractionHandler = (
 
       if (interaction.isChatInputCommand() && interaction.commandName === "resend_panel") {
         await handleResendPanel(interaction, context);
+        return;
+      }
+
+      if (interaction.isChatInputCommand() && interaction.commandName === "send_recruitment") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+          await interaction.reply({
+            content: "このコマンドには Manage Channels 権限が必要です。",
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+        await executeSendRecruitmentPanel(interaction);
         return;
       }
 

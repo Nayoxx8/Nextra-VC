@@ -2,6 +2,7 @@ import { Events, type Client, type Guild } from "discord.js";
 import { setVcCreateCommand } from "./commands/setVcCreate.js";
 import { resendPanelCommand } from "./commands/resendPanel.js";
 import { setRecruitmentRoleCommand } from "./commands/setRecruitmentRole.js";
+import { sendRecruitmentPanelCommand } from "./commands/sendRecruitmentPanel.js";
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 
@@ -9,7 +10,8 @@ type RegisterableGuild = Pick<Guild, "id" | "name" | "commands">;
 const commandPayload = [
   setVcCreateCommand.toJSON(),
   resendPanelCommand.toJSON(),
-  setRecruitmentRoleCommand.toJSON()
+  setRecruitmentRoleCommand.toJSON(),
+  sendRecruitmentPanelCommand.toJSON()
 ] as const;
 
 const buildGuildLabel = (guild: Pick<RegisterableGuild, "id" | "name">): string =>
