@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserPreference {
+  userId    String   @id @map("user_id")
+  icon      String
+  name      String
+  userLimit Int      @default(0) @map("user_limit")
+  isPrivate Boolean  @default(false) @map("is_private")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("user_preferences")
+}
+
+model VcHub {
+  guildId               String @id @map("guild_id")
+  categoryId            String @map("category_id")
+  creatorVoiceChannelId String @map("creator_voice_channel_id")
+  settingsTextChannelId String @map("settings_text_channel_id")
+
+  @@map("vc_hubs")
+}
+
+model GeneratedVc {
+  channelId   String @id @map("channel_id")
+  guildId     String @map("guild_id")
+  ownerUserId String @map("owner_user_id")
+  baseName    String @map("base_name")
+
+  @@map("generated_vcs")
+}
+
+model UserPreferenceAccessList {
+  ownerUserId  String @map("owner_user_id")
+  targetUserId String @map("target_user_id")
+  listType     String @map("list_type")
+
+  @@id([ownerUserId, targetUserId, listType])
+  @@map("user_preference_access_lists")
+}
+
+model UserVcTemplate {
+  ownerUserId  String   @map("owner_user_id")
+  slot         Int
+  templateName String   @map("template_name")
+  icon         String
+  vcName       String   @map("vc_name")
+  userLimit    Int      @default(0) @map("user_limit")
+  isPrivate    Boolean  @default(false) @map("is_private")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([ownerUserId, slot])
+  @@map("user_vc_templates")
+}
