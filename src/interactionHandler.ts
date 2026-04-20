@@ -1,5 +1,4 @@
 import {
-  ChannelType,
   Events,
   GuildMember,
   type InteractionReplyOptions,
@@ -57,7 +56,15 @@ import {
   buildTemplateSaveModal
 } from "./panels/templatePanel.js";
 import { renameOwnedGeneratedVcIfConnected } from "./services/generatedVcService.js";
-import { RECRUIT_BUTTON_ID, RECRUIT_MODAL_ID, RECRUIT_INPUT_ID, buildRecruitModal } from "./panels/recruitmentPanel.js";
+import {
+  RECRUIT_BUTTON_ID,
+  RECRUIT_MODAL_ID,
+  RECRUIT_INPUT_ID,
+  RECRUIT_PANEL_FOOTER,
+  buildRecruitModal,
+  buildRecruitmentEmbed,
+  buildRecruitmentComponents
+} from "./panels/recruitmentPanel.js";
 import { getJstTimeSlot } from "./utils/timeSlot.js";
 import type { AccessListKind, BotContext, VcTemplateRecord } from "./types.js";
 
@@ -433,6 +440,25 @@ const handleRecruitButton = async (
     return;
   }
 
+  const channel = interaction.channel;
+  if (channel?.isTextBased() && !channel.isDMBased()) {
+    void (async () => {
+      const messages = await channel.messages.fetch({ limit: 50 });
+      for (const msg of messages.values()) {
+        if (msg.embeds.some((e) => e.footer?.text === RECRUIT_PANEL_FOOTER)) {
+          await msg.delete().catch(() => undefined);
+        }
+      }
+      await channel.send({
+        embeds: [buildRecruitmentEmbed()],
+        components: buildRecruitmentComponents()
+      });
+    })().catch((e) => {
+      const message = e instanceof Error ? e.message : "unknown error";
+      console.error(`[interaction] failed to refresh recruitment panel: ${message}`);
+    });
+  }
+
   await interaction.showModal(buildRecruitModal());
 };
 
@@ -472,34 +498,10 @@ const handleRecruitModalSubmit = async (
     return;
   }
 
-  const voiceChannel =
-    interaction.guild.channels.cache.get(voiceChannelId) ??
-    await interaction.guild.channels.fetch(voiceChannelId).catch(() => null);
-  const categoryId = voiceChannel?.parentId;
-  if (!categoryId) {
+  const channel = interaction.channel;
+  if (!channel?.isTextBased() || channel.isDMBased()) {
     await sendSafeInteractionResponse(interaction, {
-      content: "VCのカテゴリが見つかりません。",
-      flags: MessageFlags.Ephemeral
-    });
-    return;
-  }
-
-  const hub = await context.repo.findHubByCategoryId(categoryId);
-  if (!hub) {
-    await sendSafeInteractionResponse(interaction, {
-      content: "通話作成ハブが見つかりません。",
-      flags: MessageFlags.Ephemeral
-    });
-    return;
-  }
-
-  const settingsChannel =
-    interaction.guild.channels.cache.get(hub.settings_text_channel_id) ??
-    await interaction.guild.channels.fetch(hub.settings_text_channel_id).catch(() => null);
-
-  if (!settingsChannel || settingsChannel.type !== ChannelType.GuildText) {
-    await sendSafeInteractionResponse(interaction, {
-      content: "設定チャンネルが見つかりません。",
+      content: "チャンネルが見つかりません。",
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -510,7 +512,7 @@ const handleRecruitModalSubmit = async (
   const roleMention = roleId ? `<@&${roleId}> ` : "";
   const userMessage = interaction.fields.getTextInputValue(RECRUIT_INPUT_ID).trim();
 
-  await settingsChannel.send({
+  await channel.send({
     content: [
       `${roleMention}${interaction.user} が通話を募集しています！`,
       `> ${userMessage}`,
