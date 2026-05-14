@@ -15,6 +15,7 @@ import {
 import { buildBaseChannelName, resolveUniqueChannelName } from "./utils/channelNaming.js";
 import { shouldDeleteGeneratedChannel } from "./utils/voiceChannelCleanup.js";
 import type { BotContext } from "./types.js";
+import { checkSubscription } from "./lib/subscriptionGuard.js";
 
 const CLEANUP_RETRY_DELAY_MS = 10_000;
 const CLEANUP_MAX_RETRIES = 3;
@@ -383,6 +384,9 @@ export const registerVoiceStateHandler = (
 ): void => {
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     try {
+      const guildId = newState.guild.id;
+      if (!(await checkSubscription(guildId, "VC"))) return;
+
       if (oldState.channelId && oldState.channelId !== newState.channelId) {
         await cleanupGeneratedIfNeeded(oldState, context);
       }
