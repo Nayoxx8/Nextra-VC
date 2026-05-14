@@ -12,6 +12,7 @@ import {
   type Client,
   type Interaction
 } from "discord.js";
+import { checkSubscription } from "./lib/subscriptionGuard.js";
 import { executeSetVcCreate } from "./commands/setVcCreate.js";
 import { executeResendPanel } from "./commands/resendPanel.js";
 import { executeSetRecruitmentRole } from "./commands/setRecruitmentRole.js";
@@ -1335,6 +1336,15 @@ export const registerInteractionHandler = (
 ): void => {
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
     try {
+      const guildId = interaction.guildId;
+      if (!guildId) return;
+      if (!(await checkSubscription(guildId, "VC"))) {
+        if (interaction.isRepliable()) {
+          try { await interaction.reply({ content: "このBotはこのサーバーでご利用いただけません。ダッシュボードから購入・選択してください。", flags: MessageFlags.Ephemeral }); } catch { /* noop */ }
+        }
+        return;
+      }
+
       if (interaction.isChatInputCommand() && interaction.commandName === "set_vccreate") {
         await handleSetVcCreate(interaction, context);
         return;
